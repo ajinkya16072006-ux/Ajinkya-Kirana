@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ajinkya Kirana Store - Billing & POS System</title>
+  <!-- html2canvas library for capturing receipt as image -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --primary-color: #2c7a7b;
+      --secondary-color: #2b6cb0;
+      --accent-color: #48bb78;
+      --bg-color: #f7fafc;
+      --card-bg: #ffffff;
+      --text-color: #2d3748;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; }
+
+    header {
+      background: var(--primary-color);
+      color: white;
+      text-align: center;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: #e2e8f0;
+      cursor: pointer;
+      font-weight: bold;
+      border-radius: 5px;
+      transition: 0.3s;
+    }
+
+    .tab-btn.active {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media(max-width: 768px) {
+      .grid-container { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    h2 { margin-bottom: 15px; color: var(--primary-color); border-bottom: 2px solid #edf2f7; padding-bottom: 5px; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.9em; margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+    }
+
+    button.btn {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    button.btn:hover { opacity: 0.9; }
+    .btn-accent { background: var(--accent-color); }
+    .btn-secondary { background: var(--secondary-color); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th { background: #edf2f7; }
+
+    .input-qty, .input-price {
+      width: 70px;
+      padding: 4px;
+    }
+
+    /* Bill Receipt Styles - Compacted */
+    #receipt {
+      border: 1px dashed #a0aec0;
+      padding: 10px;
+      background: #fff;
+      margin-top: 15px;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 0.85em;
+    }
+
+    #receipt h3 {
+      font-size: 1.1em;
+      margin-bottom: 2px;
+    }
+
+    #receipt p {
+      font-size: 0.85em;
+      margin: 2px 0;
+    }
+
+    #receipt table {
+      margin-top: 8px;
+    }
+
+    #receipt th, #receipt td {
+      padding: 4px;
+      font-size: 0.85em;
+    }
+
+    .receipt-header { text-align: center; margin-bottom: 8px; }
+    .receipt-total { text-align: right; margin-top: 8px; font-weight: bold; font-size: 0.95em; }
+    .actions { display: flex; gap: 10px; margin-top: 15px; }
+
+    /* Print Styles to optimize printed bill layout */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #receipt, #receipt * {
+        visibility: visible;
+      }
+      #receipt {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        max-width: 80mm;
+        border: none;
+        padding: 0;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🛒 Ajinkya Kirana Store</h1>
+    <p>Management System & Digital Billing</p>
+  </header>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('billing')">New Bill / Counter</button>
+    <button class="tab-btn" onclick="switchTab('products')">Manage Products</button>
+    <button class="tab-btn" onclick="switchTab('history')">Past Bills</button>
+  </div>
+
+  <!-- TAB 1: BILLING & COUNTER -->
+  <div id="billing" class="tab-content active">
+    <div class="grid-container">
+      <!-- Left: Item Selector & Cart -->
+      <div class="card">
+        <h2>Customer & Items Selection</h2>
+        <div class="form-group">
+          <label>Customer Name:</label>
+          <input type="text" id="custName" placeholder="Enter Customer Name">
+        </div>
+        <div class="form-group">
+          <label>Customer Mobile Number (for WhatsApp):</label>
+          <input type="text" id="custMobile" placeholder="e.g. 919876543210">
+        </div>
+        <div class="form-group">
+          <label>Payment Status (देयक स्थिती):</label>
+          <select id="paymentStatus" onchange="updatePaymentStatus()">
+            <option value="रोख (Paid)"> Paid (रोख)</option>
+            <option value="उधार (Pending)">Udhar / Pending (उधार)</option>
+          </select>
+        </div>
+
+        <hr style="margin: 15px 0;">
+
+        <div class="form-group">
+          <label>Select Product to Add:</label>
+          <select id="productSelect">
+            <option value="">-- Choose Product --</option>
+          </select>
+        </div>
+        <button class="btn" onclick="addToCart()">Add to Current Bill</button>
+
+        <table id="cartTable">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Price (₹)</th>
+              <th>Qty</th>
+              <th>Total</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="cartList"></tbody>
+        </table>
+      </div>
+
+      <!-- Right: Generated Receipt -->
+      <div class="card">
+        <h2>Bill Preview</h2>
+        <div id="receipt">
+          <div class="receipt-header">
+            <h3>Ajinkya Kirana Store</h3>
+            <p>Quality Products at Best Prices</p>
+            <p><strong>Date:</strong> <span id="billDate">--</span></p>
+            <p><strong>Customer:</strong> <span id="recCustName">--</span></p>
+            <p><strong>Payment Status:</strong> <span id="recPaymentStatus" style="font-weight: bold;">रोख (Paid)</span></p>
+          </div>
+          <table style="width: 100%;">
+            <thead>
+              <tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr>
+            </thead>
+            <tbody id="receiptItems"></tbody>
+          </table>
+          <div class="receipt-total">
+            Grand Total: ₹<span id="grandTotal">0.00</span>
+          </div>
+        </div>
+        
+        <div class="actions">
+          <button class="btn btn-accent" onclick="finalizeAndSaveBill()">Save & Complete Bill</button>
+          <button class="btn btn-secondary" onclick="sendWhatsApp()">Send to WhatsApp</button>
+          <button class="btn" onclick="window.print()">Print Receipt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: PRODUCT MANAGEMENT -->
+  <div id="products" class="tab-content">
+    <div class="card">
+      <h2>Add / Upload New Product</h2>
+      <div class="form-group">
+        <label>Product Name:</label>
+        <input type="text" id="pName" placeholder="e.g. Basmati Rice">
+      </div>
+      <div class="form-group">
+        <label>Default Price (₹):</label>
+        <input type="number" id="pPrice" placeholder="e.g. 120">
+      </div>
+      <button class="btn btn-accent" onclick="addProduct()">Add Product to Inventory</button>
+
+      <h2 style="margin-top: 30px;">Inventory List</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Product Name</th>
+            <th>Default Price (₹)</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="productList"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 3: PAST BILLS HISTORY -->
+  <div id="history" class="tab-content">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f7; padding-bottom: 5px; margin-bottom: 15px;">
+        <h2 style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Past Bills History</h2>
+        <button class="btn" style="background: red; width: auto; margin-top: 0;" onclick="clearBillHistory()">Clear All History</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Bill ID</th>
+            <th>Date & Time</th>
+            <th>Customer Name</th>
+            <th>Mobile</th>
+            <th>Status</th>
+            <th>Total Amount (₹)</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="historyList"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Local Data Storage Keys
+    let products = JSON.parse(localStorage.getItem('ajinkya_products')) || [
+      { id: 1, name: "Sugar (साखर)", price: 42 },
+      { id: 2, name: "Basmati Rice (तांदूळ)", price: 110 },
+      { id: 3, name: "Sunflower Oil (तेल)", price: 135 }
+    ];
+
+    let cart = [];
+    let pastBills = JSON.parse(localStorage.getItem('ajinkya_bills')) || [];
+
+    // Initialize App
+    window.onload = function() {
+      renderProducts();
+      renderCart();
+      renderHistory();
+      document.getElementById('billDate').innerText = new Date().toLocaleString();
+    };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+    }
+
+    // --- PRODUCT MANAGEMENT ---
+    function addProduct() {
+      const name = document.getElementById('pName').value.trim();
+      const price = parseFloat(document.getElementById('pPrice').value);
+
+      if (!name || isNaN(price)) {
+        alert("Please enter a valid product name and price.");
+        return;
+      }
+
+      const newProduct = { id: Date.now(), name, price };
+      products.push(newProduct);
+      localStorage.setItem('ajinkya_products', JSON.stringify(products));
+
+      // Clear input fields
+      document.getElementById('pName').value = '';
+      document.getElementById('pPrice').value = '';
+
+      renderProducts();
+      alert("Product added successfully!");
+    }
+
+    function deleteProduct(id) {
+      products = products.filter(p => p.id !== id);
+      localStorage.setItem('ajinkya_products', JSON.stringify(products));
+      renderProducts();
+    }
+
+    function renderProducts() {
+      const pList = document.getElementById('productList');
+      const pSelect = document.getElementById('productSelect');
+      
+      pList.innerHTML = '';
+      pSelect.innerHTML = '<option value="">-- Choose Product --</option>';
+
+      products.forEach(p => {
+        // Table row
+        pList.innerHTML += `
+          <tr>
+            <td>${p.name}</td>
+            <td>₹${p.price.toFixed(2)}</td>
+            <td><button style="background:red; color:white; border:none; padding:3px 8px; cursor:pointer;" onclick="deleteProduct(${p.id})">Delete</button></td>
+          </tr>`;
+
+        // Select Options
+        pSelect.innerHTML += `<option value="${p.id}">${p.name} - ₹${p.price}</option>`;
+      });
+    }
+
+    // --- BILLING / CART MANAGEMENT ---
+    function addToCart() {
+      const selectedId = parseInt(document.getElementById('productSelect').value);
+      if (!selectedId) return;
+
+      const prod = products.find(p => p.id === selectedId);
+      if (prod) {
+        // Check if item already exists in cart
+        const existingItem = cart.find(item => item.id === prod.id);
+        if (existingItem) {
+          existingItem.qty += 1;
+        } else {
+          cart.push({ ...prod, qty: 1 });
+        }
+        renderCart();
+      }
+    }
+
+    function updateCartItem(id, field, value) {
+      const item = cart.find(i => i.id === id);
+      if (item) {
+        if (field === 'qty') item.qty = parseFloat(value) || 0;
+        if (field === 'price') item.price = parseFloat(value) || 0;
+        renderCart();
+      }
+    }
+
+    function removeFromCart(id) {
+      cart = cart.filter(i => i.id !== id);
+      renderCart();
+    }
+
+    function updatePaymentStatus() {
+      const status = document.getElementById('paymentStatus').value;
+      document.getElementById('recPaymentStatus').innerText = status;
+    }
+
+    function renderCart() {
+      const cartList = document.getElementById('cartList');
+      const receiptItems = document.getElementById('receiptItems');
+      cartList.innerHTML = '';
+      receiptItems.innerHTML = '';
+
+      let total = 0;
+
+      cart.forEach(item => {
+        const itemTotal = item.price * item.qty;
+        total += itemTotal;
+
+        // Editable cart row
+        cartList.innerHTML += `
+          <tr>
+            <td>${item.name}</td>
+            <td><input type="number" class="input-price" value="${item.price}" onchange="updateCartItem(${item.id}, 'price', this.value)"></td>
+            <td><input type="number" class="input-qty" value="${item.qty}" min="0.1" step="any" onchange="updateCartItem(${item.id}, 'qty', this.value)"></td>
+            <td>₹${itemTotal.toFixed(2)}</td>
+            <td><button onclick="removeFromCart(${item.id})" style="color:red; cursor:pointer;">X</button></td>
+          </tr>
+        `;
+
+        // Live preview receipt row
+        receiptItems.innerHTML += `
+          <tr>
+            <td>${item.name}</td>
+            <td>${item.qty}</td>
+            <td>₹${item.price}</td>
+            <td>₹${itemTotal.toFixed(2)}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('grandTotal').innerText = total.toFixed(2);
+      
+      // Live Customer Name & Status Update
+      const custName = document.getElementById('custName').value || 'Guest Customer';
+      document.getElementById('recCustName').innerText = custName;
+      updatePaymentStatus();
+    }
+
+    document.getElementById('custName').addEventListener('input', function() {
+      document.getElementById('recCustName').innerText = this.value || 'Guest Customer';
+    });
+
+    // --- BILL SAVING & HISTORY ---
+    function finalizeAndSaveBill() {
+      if (cart.length === 0) {
+        alert("Cart is empty!");
+        return;
+      }
+
+      const custName = document.getElementById('custName').value.trim() || 'Guest Customer';
+      const custMobile = document.getElementById('custMobile').value.trim();
+      const status = document.getElementById('paymentStatus').value;
+      const totalAmount = document.getElementById('grandTotal').innerText;
+
+      const billRecord = {
+        id: 'BILL-' + Math.floor(100000 + Math.random() * 900000),
+        dateTime: new Date().toLocaleString(),
+        customer: custName,
+        mobile: custMobile || 'N/A',
+        status: status,
+        items: [...cart],
+        total: totalAmount
+      };
+
+      pastBills.unshift(billRecord); // Add to start of history
+      localStorage.setItem('ajinkya_bills', JSON.stringify(pastBills));
+
+      alert("Bill Saved Successfully!");
+      renderHistory();
+      
+      // Reset cart
+      cart = [];
+      document.getElementById('custName').value = '';
+      document.getElementById('custMobile').value = '';
+      document.getElementById('paymentStatus').value = 'रोख (Paid)';
+      renderCart();
+    }
+
+    function renderHistory() {
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+
+      pastBills.forEach(bill => {
+        const statusColor = (bill.status || '').includes('उधार') ? 'red' : 'green';
+        historyList.innerHTML += `
+          <tr>
+            <td><strong>${bill.id}</strong></td>
+            <td>${bill.dateTime}</td>
+            <td>${bill.customer}</td>
+            <td>${bill.mobile}</td>
+            <td style="color: ${statusColor}; font-weight: bold;">${bill.status || 'रोख (Paid)'}</td>
+            <td>₹${bill.total}</td>
+            <td><button class="btn btn-secondary" style="padding: 3px 8px; font-size:0.8em;" onclick="viewPastBill('${bill.id}')">View</button></td>
+          </tr>
+        `;
+      });
+    }
+
+    function viewPastBill(billId) {
+      const bill = pastBills.find(b => b.id === billId);
+      if (!bill) return;
+
+      switchTab('billing');
+      document.getElementById('recCustName').innerText = bill.customer;
+      document.getElementById('billDate').innerText = bill.dateTime;
+      document.getElementById('recPaymentStatus').innerText = bill.status || 'रोख (Paid)';
+      
+      const receiptItems = document.getElementById('receiptItems');
+      receiptItems.innerHTML = '';
+
+      bill.items.forEach(item => {
+        receiptItems.innerHTML += `
+          <tr>
+            <td>${item.name}</td>
+            <td>${item.qty}</td>
+            <td>₹${item.price}</td>
+            <td>₹${(item.price * item.qty).toFixed(2)}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('grandTotal').innerText = bill.total;
+    }
+
+    function clearBillHistory() {
+      if (pastBills.length === 0) {
+        alert("History is already empty!");
+        return;
+      }
+      if (confirm("Are you sure you want to delete all past bills history?")) {
+        pastBills = [];
+        localStorage.removeItem('ajinkya_bills');
+        renderHistory();
+        alert("Bill history cleared!");
+      }
+    }
+
+    // --- WHATSAPP SHARING (IMAGE RECEIPT GENERATION) ---
+    function sendWhatsApp() {
+      const mobile = document.getElementById('custMobile').value.trim();
+      if (!mobile) {
+        alert("Please enter a valid Customer Mobile Number with country code (e.g. 919876543210).");
+        return;
+      }
+
+      const status = document.getElementById('paymentStatus').value;
+      const receiptElement = document.getElementById('receipt');
+
+      // Convert receipt DIV into an image using html2canvas
+      html2canvas(receiptElement, { scale: 2 }).then(canvas => {
+        canvas.toBlob(blob => {
+          const file = new File([blob], "Ajinkya_Kirana_Receipt.png", { type: "image/png" });
+          
+          // Try Web Share API (Mobile Devices & Modern Browsers)
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({
+              files: [file],
+              title: 'Ajinkya Kirana Bill Receipt',
+              text: `Here is your purchase receipt from Ajinkya Kirana Store.\nPayment Status: ${status}`
+            }).catch(err => console.log('Sharing canceled/failed', err));
+          } else {
+            // Fallback for Desktop: Auto-download receipt image & open WhatsApp chat
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = 'Ajinkya_Kirana_Receipt.png';
+            link.click();
+
+            let message = encodeURIComponent(`Hello! Here is your bill from Ajinkya Kirana Store.\nTotal Amount: ₹${document.getElementById('grandTotal').innerText}\nPayment Status: ${status}\n`);
+            window.open(`https://wa.me/${mobile}?text=${message}`, '_blank');
+          }
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>
